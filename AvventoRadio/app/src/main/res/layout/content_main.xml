@@ -25,11 +25,22 @@
         android:onClick="playAudio"
         android:layout_centerHorizontal="true"/>
     <TextView
+        android:id="@+id/status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@color/warning_backgroud"
+        android:gravity="center"
+        android:layout_centerHorizontal="true"
+        android:textColor="@color/warning"
+        android:layout_below="@id/audioStreamBtn"/>
+
+    <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/info"
         android:textSize="@dimen/infoFontSize"
         android:layout_margin="@dimen/infoFontSize"
+        android:layout_centerHorizontal="true"
         android:gravity="center"
         android:layout_alignParentBottom="true"/>
 

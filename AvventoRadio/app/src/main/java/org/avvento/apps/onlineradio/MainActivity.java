@@ -12,12 +12,17 @@ import android.os.Bundle;
 import android.support.v4.app.NotificationCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 
+import java.io.IOException;
 import java.io.Serializable;
+import java.net.URL;
+import java.util.Scanner;
 
 public class MainActivity extends AppCompatActivity implements Serializable {
     private static String URL = "https://radio.avventohome.org/radio/8000/avvento.mp3";
@@ -42,6 +47,7 @@ public class MainActivity extends AppCompatActivity implements Serializable {
         streamBtn = findViewById(R.id.audioStreamBtn);
         notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
+        ((TextView) findViewById(R.id.status)).setText(getStatus());
         initialise();
     }
 
@@ -165,5 +171,17 @@ public class MainActivity extends AppCompatActivity implements Serializable {
         ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+    }
+
+    public String getStatus() {
+        if(!isNetworkAvailable()) {
+            return "";
+        }
+        try {
+            java.net.URL url = new URL("https://raw.githubusercontent.com/avventoapps/avvento/master/AvventoRadio/status");
+            return new Scanner(url.openStream()).useDelimiter("\\Z").next();
+        } catch(IOException ex) {
+            return "";
+        }
     }
 }
