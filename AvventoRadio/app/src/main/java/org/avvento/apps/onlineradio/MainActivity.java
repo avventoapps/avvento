@@ -43,7 +43,9 @@ public class MainActivity extends AppCompatActivity implements Serializable {
             streamBtn.setEnabled(false);
         } else {
             streamBtn.setEnabled(true);
-            radio = new AvventoMedia();
+            if(radio == null) {
+                radio = AvventoMedia.getInstance();
+            }
             if (radio.getRadio().isPlaying()) {
                 streamBtn.setText(getString(R.string.pause_streaming));
             } else {

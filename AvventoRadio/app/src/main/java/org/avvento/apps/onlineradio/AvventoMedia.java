@@ -7,10 +7,11 @@ import android.util.Log;
 import java.io.IOException;
 
 public class AvventoMedia {
+    private static AvventoMedia instance;
     private MediaPlayer radio;
     private static String URL = "https://radio.avventohome.org/radio/8000/avvento.mp3";
 
-    public AvventoMedia() {
+    private AvventoMedia() {
         try {
             radio = new MediaPlayer();
             radio.setAudioStreamType(AudioManager.STREAM_MUSIC);
@@ -19,6 +20,15 @@ public class AvventoMedia {
         } catch (IOException e) {
             Log.e("AvventoRadio Error!", e.getMessage());
         }
+    }
+
+    public static AvventoMedia getInstance() {
+        if(instance == null) {
+            synchronized (AvventoMedia.class) {
+                instance = new AvventoMedia();
+            }
+        }
+        return instance;
     }
 
     public MediaPlayer getRadio() {
