@@ -1,9 +1,6 @@
 package org.avvento.apps.onlineradio;
 
-import android.content.Context;
 import android.content.Intent;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.StrictMode;
@@ -36,32 +33,53 @@ public class MainActivity extends AppCompatActivity implements Serializable {
     private EventBus bus = EventBus.getDefault();
     private AvventoMedia radio;
     private Info info;
+    private MainActivity mainActivity;
 
-    private void initialise() {
-        if (info == null) {
-            streamBtn.setText(getString(R.string.connect_to_internet));
-            streamBtn.setEnabled(false);
-        } else {
-            streamBtn.setEnabled(true);
-            if(radio == null) {
-                radio = AvventoMedia.getInstance();
+    private void initialise(final boolean playing) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                info = getInfo();
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (info == null) {
+                            streamBtn.setText(getString(R.string.connect_to_internet));
+                            streamBtn.setEnabled(false);
+                        } else {
+                            streamBtn.setEnabled(true);
+                            radio = AvventoMedia.getInstance();
+                            if (radio.getRadio().isPlaying()) {
+                                streamBtn.setText(getString(R.string.pause_streaming));
+                            } else {
+                                streamBtn.setText(getString(R.string.start_streaming));
+                            }
+                        }
+                        ((TextView) findViewById(R.id.info)).setText(info.getInfo());
+                        ((TextView) findViewById(R.id.warning)).setText(info.getWarning());
+                        final TickerView tickerView = findViewById(R.id.tickerView);
+                        for (int i = 0; i < info.getTicker().length; i++) {
+                            TextView tv = new TextView(mainActivity);
+                            tv.setLayoutParams(new LinearLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                            tv.setText(info.getTicker()[i]);
+                            tv.setBackgroundColor(ContextCompat.getColor(mainActivity, android.R.color.white));
+                            tv.setTextColor(ContextCompat.getColor(mainActivity, android.R.color.black));
+                            tv.setPadding(10, 5, 10, 5);
+                            tickerView.addChildView(tv);
+                        }
+                        tickerView.showTickers();
+                        if(!playing) {
+                            bus.post(new StreamingEvent(radio));
+                        }
+                    }
+                });
             }
-            if (radio.getRadio().isPlaying()) {
-                streamBtn.setText(getString(R.string.pause_streaming));
-            } else {
-                streamBtn.setText(getString(R.string.start_streaming));
-            }
-        }
+        }).start();
     }
 
     public void playAudio(View view) {
         bus.post(new StreamingEvent(radio));
-    }
-
-    private boolean isNetworkAvailable() {
-        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
-        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
 
     private Info getInfo() {
@@ -76,25 +94,6 @@ public class MainActivity extends AppCompatActivity implements Serializable {
             Log.e("AvventoRadio Error!", ex.getMessage());
             return null;
         }
-    }
-
-    private void showInfo() {
-        ((TextView) findViewById(R.id.info)).setText(info.getInfo());
-        ((TextView) findViewById(R.id.warning)).setText(info.getWarning());
-        final TickerView tickerView = findViewById(R.id.tickerView);
-        // Add multiple views to be shown in the ticker
-        for (int i = 0; i < info.getTicker().length; i++) {
-            TextView tv = new TextView(this);
-            tv.setLayoutParams(new LinearLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-            tv.setText(info.getTicker()[i]);
-            tv.setBackgroundColor(ContextCompat.getColor(this, android.R.color.white));
-            tv.setTextColor(ContextCompat.getColor(this, android.R.color.black));
-            tv.setPadding(10, 5, 10, 5);
-            tickerView.addChildView(tv);
-        }
-
-        // Call the showTickers() to show them on the screen
-        tickerView.showTickers();
     }
 
     @Subscribe(threadMode = ThreadMode.BACKGROUND)
@@ -113,11 +112,9 @@ public class MainActivity extends AppCompatActivity implements Serializable {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         streamBtn = findViewById(R.id.audioStreamBtn);
-        info = getInfo();
-        initialise();
-        showInfo();
-        bus.register(this);
-
+        mainActivity = this;
+        initialise(false);
+        bus.register(mainActivity);
 
         setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
     }
@@ -125,12 +122,12 @@ public class MainActivity extends AppCompatActivity implements Serializable {
     @Override
     protected void onResume() {
         super.onResume();
-        initialise();
+        initialise(true);
     }
 
     @Override
     protected void onDestroy() {
-        bus.unregister(this);
+        bus.unregister(mainActivity);
         super.onDestroy();
     }
 

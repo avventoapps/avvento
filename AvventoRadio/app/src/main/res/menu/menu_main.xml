@@ -41,6 +41,6 @@
         android:title="@string/link_mixcloud" />
     <item
         android:id="@+id/exit"
-        android:orderInCategory="9"
+        android:orderInCategory="10"
         android:title="@string/exit" />
 </menu>
