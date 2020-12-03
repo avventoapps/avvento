@@ -13,7 +13,7 @@
     <string name="link_youtube">Youtube</string>
     <string name="link_mixcloud">MixCloud</string>
     <string name="loading">LOADING...</string>
-    <string name="stop">Stop</string>
+    <string name="exit">Exit</string>
     <string name="start_streaming">START LISTENING</string>
     <string name="pause_streaming">PAUSE LISTENING</string>
     <string name="connect_to_internet">Connect internet</string>

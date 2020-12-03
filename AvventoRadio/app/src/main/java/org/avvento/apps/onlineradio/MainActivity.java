@@ -6,16 +6,22 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.StrictMode;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import com.google.gson.Gson;
+import com.vinay.ticker.lib.TickerView;
 
-import org.avvento.apps.onlineradio.events.InfoEvent;
 import org.avvento.apps.onlineradio.events.StreamingEvent;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -56,16 +62,37 @@ public class MainActivity extends AppCompatActivity implements Serializable {
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
 
-    public Info getInfo() {
-        if(!isNetworkAvailable()) {
-            return null;
+    private Info getInfo() {
+        //allow running all on the main thread
+        if (android.os.Build.VERSION.SDK_INT > 9) {
+            StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder().permitAll().build());
         }
         try {
-            java.net.URL url = new URL("https://raw.githubusercontent.com/avventoapps/avvento/master/AvventoRadio/status");
+            java.net.URL url = new URL("https://raw.githubusercontent.com/avventoapps/avvento/master/AvventoRadio/info");
             return new Gson().fromJson(new Scanner(url.openStream()).useDelimiter("\\Z").next(), Info.class);
         } catch(Exception ex) {
+            Log.e("AvventoRadio Error!", ex.getMessage());
             return null;
         }
+    }
+
+    private void showInfo() {
+        ((TextView) findViewById(R.id.info)).setText(info.getInfo());
+        ((TextView) findViewById(R.id.warning)).setText(info.getWarning());
+        final TickerView tickerView = findViewById(R.id.tickerView);
+        // Add multiple views to be shown in the ticker
+        for (int i = 0; i < info.getTicker().length; i++) {
+            TextView tv = new TextView(this);
+            tv.setLayoutParams(new LinearLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+            tv.setText(info.getTicker()[i]);
+            tv.setBackgroundColor(ContextCompat.getColor(this, android.R.color.white));
+            tv.setTextColor(ContextCompat.getColor(this, android.R.color.black));
+            tv.setPadding(10, 5, 10, 5);
+            tickerView.addChildView(tv);
+        }
+
+        // Call the showTickers() to show them on the screen
+        tickerView.showTickers();
     }
 
     @Subscribe(threadMode = ThreadMode.BACKGROUND)
@@ -79,22 +106,16 @@ public class MainActivity extends AppCompatActivity implements Serializable {
         }
     }
 
-    @Subscribe(threadMode = ThreadMode.ASYNC)
-    public void onStatus(InfoEvent statusEvent){
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         streamBtn = findViewById(R.id.audioStreamBtn);
-
         info = getInfo();
         initialise();
+        showInfo();
         bus.register(this);
-        bus.post(new InfoEvent("https://raw.githubusercontent.com/avventoapps/avvento/master/AvventoRadio/info"));
 
-        //((TextView) findViewById(R.id.warning)).setText(getStatus());
 
         setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
     }
@@ -103,6 +124,12 @@ public class MainActivity extends AppCompatActivity implements Serializable {
     protected void onResume() {
         super.onResume();
         initialise();
+    }
+
+    @Override
+    protected void onDestroy() {
+        bus.unregister(this);
+        super.onDestroy();
     }
 
     @Override
@@ -141,20 +168,12 @@ public class MainActivity extends AppCompatActivity implements Serializable {
         } else if(id == R.id.mixcloud) {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.mixcloud.com/avventoProductions")));
             return true;
-        } else if(id == R.id.stop) {
+        } else if(id == R.id.exit) {
             finish();
             System.exit(0);
             return true;
         }
         return super.onOptionsItemSelected(item);
     }
-
-    @Override
-    protected void onDestroy() {
-        bus.unregister(this);
-        super.onDestroy();
-    }
-
-
 
 }
