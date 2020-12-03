@@ -1,121 +1,108 @@
 package org.avvento.apps.onlineradio;
 
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.StrictMode;
-import android.support.v4.app.NotificationCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
-import android.widget.TextView;
 
-import java.io.IOException;
+import com.google.gson.Gson;
+
+import org.avvento.apps.onlineradio.events.InfoEvent;
+import org.avvento.apps.onlineradio.events.StreamingEvent;
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
 import java.io.Serializable;
 import java.net.URL;
 import java.util.Scanner;
 
 public class MainActivity extends AppCompatActivity implements Serializable {
-    private static String URL = "https://radio.avventohome.org/radio/8000/avvento.mp3";
-    public static final String NOTIFICATION_CHANNEL_ID = "1";
-    private final static String default_notification_channel_id = "AVVENTO_RADIO";
-    public static MainActivity instance;
     private Button streamBtn;
-    // true if playing, false if stopped
-    private boolean playing = false;
-    private NotificationManager notificationManager;
-    private Intent buttonIntent;
+    private EventBus bus = EventBus.getDefault();
+    private AvventoMedia radio;
+    private Info info;
+
+    private void initialise() {
+        if (info == null) {
+            streamBtn.setText(getString(R.string.connect_to_internet));
+            streamBtn.setEnabled(false);
+        } else {
+            streamBtn.setEnabled(true);
+            radio = new AvventoMedia();
+            if (radio.getRadio().isPlaying()) {
+                streamBtn.setText(getString(R.string.pause_streaming));
+            } else {
+                streamBtn.setText(getString(R.string.start_streaming));
+            }
+        }
+    }
+
+    public void playAudio(View view) {
+        bus.post(new StreamingEvent(radio));
+    }
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+    }
+
+    public Info getInfo() {
+        if(!isNetworkAvailable()) {
+            return null;
+        }
+        try {
+            java.net.URL url = new URL("https://raw.githubusercontent.com/avventoapps/avvento/master/AvventoRadio/status");
+            return new Gson().fromJson(new Scanner(url.openStream()).useDelimiter("\\Z").next(), Info.class);
+        } catch(Exception ex) {
+            return null;
+        }
+    }
+
+    @Subscribe(threadMode = ThreadMode.BACKGROUND)
+    public void onStreaming(StreamingEvent streamingEvent){
+        if(streamingEvent.getAvventoMedia().getRadio().isPlaying()) {
+            streamingEvent.getAvventoMedia().getRadio().pause();
+            streamBtn.setText(getString(R.string.start_streaming));
+        } else {
+            streamingEvent.getAvventoMedia().getRadio().start();
+            streamBtn.setText(getString(R.string.pause_streaming));
+        }
+    }
+
+    @Subscribe(threadMode = ThreadMode.ASYNC)
+    public void onStatus(InfoEvent statusEvent){
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        instance = this;
         setContentView(R.layout.activity_main);
-
-        //allow running all on the main thread
-        if (android.os.Build.VERSION.SDK_INT > 9) {
-            StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
-            StrictMode.setThreadPolicy(policy);
-        }
-        ((TextView) findViewById(R.id.warning)).setText(getStatus());
-
         streamBtn = findViewById(R.id.audioStreamBtn);
-        notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
+
+        info = getInfo();
         initialise();
+        bus.register(this);
+        bus.post(new InfoEvent("https://raw.githubusercontent.com/avventoapps/avvento/master/AvventoRadio/info"));
+
+        //((TextView) findViewById(R.id.warning)).setText(getStatus());
+
+        setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
     }
 
-    private void initialise() {
-        boolean networkOn = isNetworkAvailable();
-        streamBtn.setEnabled(networkOn);
-        if (!networkOn) {
-            streamBtn.setText(getString(R.string.connect_to_internet));
-        } else if (playing) {
-            streamBtn.setText(getString(R.string.stop_streaming));
-        } else {
-            streamBtn.setText(getString(R.string.start_streaming));
-        }
-    }
-
-    private void start() {
-        streamBtn.setText(getString(R.string.stop_streaming));
-        startService(new Intent(this, Stream.class));
-        playing = true;
-    }
-
-    private void stop() {
-        streamBtn.setText(getString(R.string.start_streaming));
-        stopService(new Intent(this, Stream.class));
-        playing = false;
-    }
-
-    public void playTrigger() {
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, new Intent(), 0);
-        buttonIntent = new Intent(this, NotificationReceiver.class);
-        buttonIntent.putExtra("notificationId", NOTIFICATION_CHANNEL_ID);
-
-        NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(getApplicationContext(), default_notification_channel_id);
-        mBuilder.setContentTitle(getString(R.string.avvento_media));
-        mBuilder.setContentText(getString(R.string.slogan));
-        mBuilder.setContentIntent(pendingIntent);
-        PendingIntent btPendingIntent = PendingIntent.getBroadcast(this, 0, buttonIntent, 0);
-
-        if (!playing) {
-            start();
-            mBuilder.addAction(R.drawable.ic_launcher_foreground, getString(R.string.stop_streaming), btPendingIntent);
-        } else {
-            stop();
-            mBuilder.addAction(R.drawable.ic_launcher_foreground, getString(R.string.start_streaming), btPendingIntent);
-        }
-
-        mBuilder.setSmallIcon(R.drawable.logo);
-        mBuilder.setAutoCancel(false);
-        mBuilder.setOngoing(true);
-
-        mBuilder.setDeleteIntent(getDeleteIntent());
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            int importance = NotificationManager.IMPORTANCE_HIGH;
-            NotificationChannel notificationChannel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, "NOTIFICATION_CHANNEL_NAME", importance);
-            mBuilder.setChannelId(NOTIFICATION_CHANNEL_ID);
-            assert notificationManager != null;
-            notificationManager.createNotificationChannel(notificationChannel);
-        }
-        assert notificationManager != null;
-        notificationManager.cancelAll();
-        notificationManager.notify(Integer.parseInt(NOTIFICATION_CHANNEL_ID), mBuilder.build());
-    }
-
-    public void playAudio(View view) {
-        playTrigger();
+    @Override
+    protected void onResume() {
+        super.onResume();
+        initialise();
     }
 
     @Override
@@ -154,37 +141,20 @@ public class MainActivity extends AppCompatActivity implements Serializable {
         } else if(id == R.id.mixcloud) {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.mixcloud.com/avventoProductions")));
             return true;
+        } else if(id == R.id.stop) {
+            finish();
+            System.exit(0);
+            return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        initialise();
+    protected void onDestroy() {
+        bus.unregister(this);
+        super.onDestroy();
     }
 
-    protected PendingIntent getDeleteIntent() {
-        Intent intent = new Intent(MainActivity.this, NotificationReceiver.class);
-        intent.setAction("notification_cancelled");
-        return PendingIntent.getBroadcast(MainActivity.this, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
-    }
 
-    private boolean isNetworkAvailable() {
-        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
-        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
-    }
 
-    public String getStatus() {
-        if(!isNetworkAvailable()) {
-            return "";
-        }
-        try {
-            java.net.URL url = new URL("https://raw.githubusercontent.com/avventoapps/avvento/master/AvventoRadio/status");
-            return new Scanner(url.openStream()).useDelimiter("\\Z").next();
-        } catch(IOException ex) {
-            return "";
-        }
-    }
 }

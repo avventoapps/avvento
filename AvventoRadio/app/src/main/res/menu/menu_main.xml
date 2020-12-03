@@ -39,4 +39,8 @@
         android:id="@+id/mixcloud"
         android:orderInCategory="9"
         android:title="@string/link_mixcloud" />
+    <item
+        android:id="@+id/stop"
+        android:orderInCategory="9"
+        android:title="@string/stop" />
 </menu>
